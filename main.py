@@ -1,3 +1,4 @@
+#nie usuwałam tego, ale w sumie użyte w planePressure więc już niepotrzebne
 import numpy as np
 import random
 import matplotlib

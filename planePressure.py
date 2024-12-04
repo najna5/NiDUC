@@ -18,46 +18,67 @@ def generate_sensor_reading(reliability):
         return random.randint(Pa - 400, Pa + 400) / 100
 
 
-def majority_voting(readings):
-    ERROR_MARGIN = 1.0  # 1% margines błędu
-    base_reading = readings[0]
+######################## algorytmy głosowania ###########################
 
-    # Znajdź wartości w zakresie błędu
-    consistent_readings = [
-        r for r in readings if abs(r - base_reading) / base_reading * 100 <= ERROR_MARGIN
-    ]
-
-    # Sprawdź, czy większość się zgadza
-    if len(consistent_readings) > len(readings) / 2:
-        # Średnia ważona z pasujących odczytów
-        weights = [0.5, 0.3, 0.2]
-        weights_sum = sum(weights[:len(consistent_readings)])
-        weighted_average = sum(
-            w * r for w, r in zip(weights, consistent_readings)
-        ) / weights_sum
-        return weighted_average
-
-    return None  # Brak zgodności
-
-
+#Mediananowy algorytm głosowania z adaptacyjnym oknem tolerancji
 def median_voting(readings):
-    # Znajdź medianę z wartości
-    median = sorted(readings)[len(readings) // 2]
+    def calculate_median(values):
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+        mid = n // 2
+        if n % 2 == 0:
+            return (sorted_values[mid - 1] + sorted_values[mid]) / 2
+        else:
+            return sorted_values[mid]
 
-    # Oblicz odchylenia od mediany
+    median = calculate_median(readings)
+
+    #tablica odchyleń od mediany każdej wartośći
     deviations = [abs(r - median) for r in readings]
-    median_deviation = sorted(deviations)[len(deviations) // 2]
 
-    # Wyznacz zakres tolerancji
-    tolerance = median_deviation
-    selected_readings = [r for r in readings if abs(r - median) <= tolerance]
+    # mediana z odchyleń, będzie stanowić margines odchylenia
+    # (tj. mediana +-median_deviation)
+    median_deviation = calculate_median(deviations)
 
-    # Mediana z wybranych wartości
+    selected_readings = [r for r in readings if abs(r-median) <= median_deviation]
+
     if selected_readings:
-        return sorted(selected_readings)[len(selected_readings) // 2]
+        return calculate_median(selected_readings)
+
     return None
 
 
+#Głosowanie większościowe z głosowaniem średnim
+def majority_voting(readings):
+    ERROR_MARGIN = 1.0  # 1% margines błędu
+
+    def within_margin(value1, value2, margin):
+        return abs(value1 - value2)/value1*100 <= margin
+
+    # Sprawdzenie wszystkich kombinacji 2 lub 3 wartości
+    matching_readings = []
+    n = len(readings)
+
+    # Iteracja po wszystkich parach, aby znaleźć największą grupę zgodnych wartości
+    for i in range(n):
+        current_group = [readings[i]]  # Zaczynamy od jednego elementu
+        for j in range(n):
+            if i != j and within_margin(readings[i], readings[j], ERROR_MARGIN):
+                current_group.append(readings[j])
+
+        # Jeśli znaleźliśmy większą grupę, zastępujemy obecną
+        if len(current_group) > len(matching_readings):
+            matching_readings = current_group
+
+    # Sprawdzamy, czy liczba zgodnych wartości jest większa niż połowa
+    if len(matching_readings) > n / 2:
+        return sum(matching_readings) / len(matching_readings)  # Średnia zgodnych wartości
+
+    # W przeciwnym razie zwróć None
+    return None
+
+
+#Głosowanie ważone
 def weighted_voting(readings):
     weights = [0.5, 0.3, 0.2]  # Wagi barometrów
     weights_sum = sum(weights)
@@ -66,8 +87,9 @@ def weighted_voting(readings):
     weighted_average = sum(w * r for w, r in zip(weights, readings)) / weights_sum
     return weighted_average
 
+##################################################################
 
-#definiowanie wygląd okna
+#definiowanie wyglądu okna
 class SensorPlot(QWidget):
     def __init__(self, reliability, parent=None):
         super().__init__(parent)
@@ -145,8 +167,8 @@ class MainApp(QMainWindow):
         self.sensor3 = SensorPlot(87, self)
 
         # Create table for latest values
-        self.table = QTableWidget(3, 5)
-        self.table.setHorizontalHeaderLabels(["Sensor", "Value [hPa]", "MV", "MED", "WAVG"])
+        self.table = QTableWidget(3, 6)
+        self.table.setHorizontalHeaderLabels(["Barometr", "Ciśnienie [hPa]","", "Majority Voter", "Median Voter", "Weighted Voter"])
         self.table.setVerticalHeaderLabels(["Barometr 1", "Barometr 2", "Barometr 3"])
         self.table.setFixedHeight(150)
 
@@ -154,10 +176,10 @@ class MainApp(QMainWindow):
         layout.addWidget(self.sensor1)
         layout.addWidget(self.sensor2)
         layout.addWidget(self.sensor3)
-        layout.addWidget(QLabel("Biezrzące odczyty:"))
+        layout.addWidget(QLabel("Bierzące odczyty:"))
         layout.addWidget(self.table)
 
-        # Set up the timer for updates (every 1000 ms = 1 second)
+        # Set up the timer for updates
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(500)  # Update every 500 ms (0.5 second)
@@ -180,9 +202,9 @@ class MainApp(QMainWindow):
         ]
 
         # Wyniki algorytmów głosowania
-        mv_result = majority_voting(readings)
+        maj_result = majority_voting(readings)
         med_result = median_voting(readings)
-        wavg_result = weighted_voting(readings)
+        weight_result = weighted_voting(readings)
 
         # Update table with latest values
         sensors = [self.sensor1, self.sensor2, self.sensor3]
@@ -192,10 +214,12 @@ class MainApp(QMainWindow):
             self.table.setItem(i, 1, QTableWidgetItem(f"{latest_value:.2f}"))
 
         # Wyświetl wyniki algorytmów głosowania w ostatnim wierszu
-        self.table.setItem(0, 2, QTableWidgetItem(f"{mv_result:.2f}" if mv_result is not None else "N/A"))
-        self.table.setItem(0, 3, QTableWidgetItem(f"{med_result:.2f}" if med_result is not None else "N/A"))
-        self.table.setItem(0, 4, QTableWidgetItem(f"{wavg_result:.2f}"))
+        self.table.setItem(0, 3, QTableWidgetItem(f"{maj_result:.2f}" if maj_result is not None else "N/A"))
+        self.table.setItem(0, 4, QTableWidgetItem(f"{med_result:.2f}" if med_result is not None else "N/A"))
+        self.table.setItem(0, 5, QTableWidgetItem(f"{weight_result:.2f}"))
 
+        self.table.setItem(0, 2, QTableWidgetItem("wynik głosowania [hPa]:"))
+        self.table.setColumnWidth(2, 160)
 
 
 if __name__ == "__main__":
