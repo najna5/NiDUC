@@ -9,9 +9,9 @@ from PyQt5.QtCore import QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-Pa = 33534  # Base pressure
+Pa = 33534  # Base pressure in Pa
 
-# Funkcja generująca odczyty barometrów
+# Funkcja generująca odczyty barometrów w hPa
 def generate_sensor_reading(reliability):
     if random.randint(0, 100) < reliability:
         return random.randint(Pa - 20, Pa + 20) / 100
@@ -139,7 +139,7 @@ class SensorPlot(QWidget):
         self.figure = Figure(figsize=(8, 5), dpi=100)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_xlabel("czas [s]", fontsize=8)
+        self.ax.set_xlabel("czas [0.5 s]", fontsize=8)
         self.ax.set_ylabel("ciśnienie [hPa]", fontsize=8)
         self.ax.set_ylim(325, 345)
         self.ax.set_xlim(0, 100)
@@ -187,7 +187,7 @@ class HeightPlot(QDialog):
         self.figure = Figure(figsize=(8, 5), dpi=100)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_xlabel("czas [s]", fontsize=8)
+        self.ax.set_xlabel("czas [0.5 s]", fontsize=8)
         self.ax.set_ylabel("wysokość [m n.p.m.]", fontsize=8)
         self.ax.grid()
 
